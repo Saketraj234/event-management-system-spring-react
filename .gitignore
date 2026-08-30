@@ -1,0 +1,28 @@
+# =========================
+# Frontend
+# =========================
+react-frontend/node_modules/
+react-frontend/dist/
+
+# Environment files
+react-frontend/.env
+.env
+
+# =========================
+# Backend
+# =========================
+spring-backend/target/
+spring-backend/.idea/
+
+# =========================
+# IDE Files
+# =========================
+.idea/
+.vscode/
+*.iml
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
