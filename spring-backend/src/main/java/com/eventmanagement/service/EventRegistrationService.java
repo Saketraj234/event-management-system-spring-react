@@ -27,56 +27,55 @@ public class EventRegistrationService {
         this.userRepository = userRepository;
     }
 
-    // Register current logged-in user for an event
-    public EventRegistration registerForEvent(String email, Long eventId) {
+    // Register user for an event
+    public EventRegistration registerForEvent(Long userId, Long eventId) {
 
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new RuntimeException("Event not found"));
 
-        // Duplicate check
-        if (registrationRepository.existsByUserIdAndEventId(
-                user.getId(), eventId)) {
-            throw new RuntimeException(
-                    "User already registered for this event"
-            );
+        // Duplicate registration check
+        if (registrationRepository.existsByUserIdAndEventId(userId, eventId)) {
+            throw new RuntimeException("User already registered for this event");
         }
 
-        // Capacity check
-        long registeredCount =
-                registrationRepository.countByEventId(eventId);
+        // Event capacity check
+        long registeredCount = registrationRepository.countByEventId(eventId);
 
         if (registeredCount >= event.getCapacity()) {
             throw new RuntimeException("Event is full");
         }
 
         EventRegistration registration = new EventRegistration();
+
         registration.setUser(user);
         registration.setEvent(event);
 
         return registrationRepository.save(registration);
     }
 
-    // Get registrations of current logged-in user
-    public List<EventRegistration> getRegisteredEvents(String email) {
+    // Get all registrations
+    public List<EventRegistration> getAllRegistrations() {
+        return registrationRepository.findAll();
+    }
 
-        User user = userRepository.findByEmail(email)
+    // Get all registered events of a user
+    public List<EventRegistration> getRegisteredEvents(Long userId) {
+
+        userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return registrationRepository.findByUserId(user.getId());
+        return registrationRepository.findByUserId(userId);
     }
 
     // Cancel registration
     public void cancelRegistration(Long registrationId) {
 
-        EventRegistration registration =
-                registrationRepository.findById(registrationId)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Registration not found"
-                                ));
+        EventRegistration registration = registrationRepository.findById(registrationId)
+                .orElseThrow(() ->
+                        new RuntimeException("Registration not found"));
 
         registrationRepository.delete(registration);
     }

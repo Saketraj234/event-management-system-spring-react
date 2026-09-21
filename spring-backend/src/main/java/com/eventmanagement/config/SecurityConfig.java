@@ -95,11 +95,11 @@ public class SecurityConfig {
                                 "/api/registrations/**"
                         ).hasRole("USER")
 
-                        // USER can view registrations
+                        // USER + ADMIN can view registrations
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/registrations/**"
-                        ).hasRole("USER")
+                        ).hasAnyRole("USER", "ADMIN")
 
                         // USER can cancel registration
                         .requestMatchers(

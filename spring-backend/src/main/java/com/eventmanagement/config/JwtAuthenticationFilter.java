@@ -3,10 +3,12 @@ package com.eventmanagement.config;
 import com.eventmanagement.entity.User;
 import com.eventmanagement.repository.UserRepository;
 import com.eventmanagement.service.JwtService;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        // No token
+        // No JWT token
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -49,46 +51,67 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-        String email = jwtService.extractEmail(token);
+        try {
 
-        // If user is not already authenticated
-        if (email != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
+            // Extract email from JWT
+            String email = jwtService.extractEmail(token);
 
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() ->
-                            new RuntimeException("User not found"));
+            // User not already authenticated
+            if (email != null &&
+                    SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            if (jwtService.isTokenValid(token, user.getEmail())) {
+                User user = userRepository.findByEmail(email)
+                        .orElse(null);
 
-                // IMPORTANT: ROLE_ prefix required for hasRole("USER")
-                SimpleGrantedAuthority authority =
-                        new SimpleGrantedAuthority(
-                                "ROLE_" + user.getRole()
-                        );
+                if (user != null &&
+                        jwtService.isTokenValid(token, user.getEmail())) {
 
-                UserDetails userDetails =
-                        org.springframework.security.core.userdetails.User
-                                .withUsername(user.getEmail())
-                                .password(user.getPassword())
-                                .authorities(List.of(authority))
-                                .build();
+                    // USER -> ROLE_USER
+                    // ADMIN -> ROLE_ADMIN
+                    SimpleGrantedAuthority authority =
+                            new SimpleGrantedAuthority(
+                                    "ROLE_" + user.getRole()
+                            );
 
-                UsernamePasswordAuthenticationToken authenticationToken =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
+                    UserDetails userDetails =
+                            org.springframework.security.core.userdetails.User
+                                    .withUsername(user.getEmail())
+                                    .password(user.getPassword())
+                                    .authorities(List.of(authority))
+                                    .build();
 
-                authenticationToken.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
+                    UsernamePasswordAuthenticationToken authenticationToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
 
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authenticationToken);
+                    authenticationToken.setDetails(
+                            new WebAuthenticationDetailsSource()
+                                    .buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext()
+                            .setAuthentication(authenticationToken);
+
+                    System.out.println(
+                            "JWT Authentication successful: "
+                                    + user.getEmail()
+                                    + " | ROLE: "
+                                    + authority.getAuthority()
+                    );
+                }
             }
+
+        } catch (Exception e) {
+
+            System.out.println(
+                    "JWT Authentication failed: "
+                            + e.getMessage()
+            );
+
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);

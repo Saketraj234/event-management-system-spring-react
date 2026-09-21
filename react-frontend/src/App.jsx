@@ -15,9 +15,12 @@ function App() {
 
   const [events, setEvents] = useState([]);
   const [showRegistrations, setShowRegistrations] = useState(false);
+  const [showAdminRegistrations, setShowAdminRegistrations] =
+    useState(false);
+
   const [registrations, setRegistrations] = useState([]);
 
-  // Admin Create / Update Event States
+  // Admin Event States
   const [eventTitle, setEventTitle] = useState("");
   const [eventDescription, setEventDescription] = useState("");
   const [eventLocation, setEventLocation] = useState("");
@@ -25,26 +28,57 @@ function App() {
   const [eventTime, setEventTime] = useState("");
   const [eventCapacity, setEventCapacity] = useState("");
 
-  // Edit state
   const [editingEventId, setEditingEventId] = useState(null);
 
-  // Get role from JWT token
-  const getRoleFromToken = (token) => {
+  // =========================
+  // JWT PAYLOAD
+  // =========================
+
+  const getTokenPayload = (token) => {
     try {
+      if (!token) return null;
+
       const payload = token.split(".")[1];
 
-      const decodedPayload = JSON.parse(
+      if (!payload) return null;
+
+      return JSON.parse(
         atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
       );
-
-      return decodedPayload.role;
     } catch (error) {
-      console.error("Invalid token", error);
+      console.error("Invalid JWT token:", error);
       return null;
     }
   };
 
-  // Login
+  // Get role from JWT
+  const getRoleFromToken = (token) => {
+    const payload = getTokenPayload(token);
+
+    if (!payload) return null;
+
+    return payload.role;
+  };
+
+  // Get user ID from JWT
+  const getUserIdFromToken = (token) => {
+    const payload = getTokenPayload(token);
+
+    if (!payload) return null;
+
+    return (
+      payload.userId ||
+      payload.user_id ||
+      payload.id ||
+      payload.subId ||
+      null
+    );
+  };
+
+  // =========================
+  // LOGIN
+  // =========================
+
   const handleLogin = async () => {
     try {
       const response = await fetch(
@@ -63,42 +97,66 @@ function App() {
 
       const data = await response.text();
 
-      if (response.ok) {
-        const role = getRoleFromToken(data);
-
-        localStorage.setItem("token", data);
-        localStorage.setItem("role", role);
-
-        setUserRole(role);
-        setIsLoggedIn(true);
-
-        alert("Login Successful!");
-      } else {
+      if (!response.ok) {
         alert(data || "Login Failed");
+        return;
       }
+
+      const token = data.trim();
+
+      const role = getRoleFromToken(token);
+      const userId = getUserIdFromToken(token);
+
+      console.log("JWT Role:", role);
+      console.log("JWT User ID:", userId);
+
+      localStorage.setItem("token", token);
+
+      if (role) {
+        localStorage.setItem("role", role);
+      }
+
+      if (userId) {
+        localStorage.setItem("userId", userId);
+      }
+
+      setUserRole(role || "");
+      setIsLoggedIn(true);
+
+      alert("Login Successful!");
     } catch (error) {
       console.error(error);
       alert("Error: " + error.message);
     }
   };
 
-  // Logout
+  // =========================
+  // LOGOUT
+  // =========================
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    localStorage.removeItem("userId");
 
     setIsLoggedIn(false);
     setUserRole("");
     setShowRegistrations(false);
+    setShowAdminRegistrations(false);
+
     setEvents([]);
     setRegistrations([]);
+
     setEmail("");
     setPassword("");
 
     alert("Logged out successfully!");
   };
 
-  // Register new user
+  // =========================
+  // REGISTER USER
+  // =========================
+
   const handleRegisterUser = async () => {
     try {
       const response = await fetch(
@@ -135,7 +193,10 @@ function App() {
     }
   };
 
-  // Get all events
+  // =========================
+  // GET ALL EVENTS
+  // =========================
+
   const getEvents = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -150,20 +211,23 @@ function App() {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`Failed to load events: ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (response.ok) {
-        setEvents(data);
-      } else {
-        alert("Failed to load events");
-      }
+      setEvents(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error loading events:", error);
       alert("Error loading events");
     }
   };
 
-  // Clear event form
+  // =========================
+  // CLEAR EVENT FORM
+  // =========================
+
   const clearEventForm = () => {
     setEventTitle("");
     setEventDescription("");
@@ -174,7 +238,10 @@ function App() {
     setEditingEventId(null);
   };
 
-  // ADMIN - Create Event
+  // =========================
+  // CREATE EVENT
+  // =========================
+
   const handleCreateEvent = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -202,7 +269,9 @@ function App() {
 
       if (response.ok) {
         alert("Event Created Successfully!");
+
         clearEventForm();
+
         getEvents();
       } else {
         alert(data || "Failed to create event");
@@ -213,9 +282,13 @@ function App() {
     }
   };
 
-  // Start editing event
+  // =========================
+  // EDIT EVENT
+  // =========================
+
   const handleEditClick = (event) => {
     setEditingEventId(event.id);
+
     setEventTitle(event.title);
     setEventDescription(event.description);
     setEventLocation(event.location);
@@ -224,7 +297,10 @@ function App() {
     setEventCapacity(event.capacity);
   };
 
-  // ADMIN - Update Event
+  // =========================
+  // UPDATE EVENT
+  // =========================
+
   const handleUpdateEvent = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -252,7 +328,9 @@ function App() {
 
       if (response.ok) {
         alert("Event Updated Successfully!");
+
         clearEventForm();
+
         getEvents();
       } else {
         alert(data || "Failed to update event");
@@ -263,7 +341,10 @@ function App() {
     }
   };
 
-  // ADMIN - Delete Event
+  // =========================
+  // DELETE EVENT
+  // =========================
+
   const handleDeleteEvent = async (eventId) => {
     const confirmDelete = window.confirm(
       "Are you sure you want to delete this event?"
@@ -301,13 +382,29 @@ function App() {
     }
   };
 
-  // USER - Register for event
+  // =========================
+  // USER - REGISTER EVENT
+  // =========================
+
   const handleRegister = async (eventId) => {
     try {
       const token = localStorage.getItem("token");
 
+      let userId = localStorage.getItem("userId");
+
+      if (!userId) {
+        userId = getUserIdFromToken(token);
+      }
+
+      if (!userId) {
+        alert(
+          "User ID not found in JWT. Please login again."
+        );
+        return;
+      }
+
       const response = await fetch(
-        `http://localhost:8080/api/registrations/event/${eventId}`,
+        `http://localhost:8080/api/registrations/user/${userId}/event/${eventId}`,
         {
           method: "POST",
           headers: {
@@ -329,13 +426,29 @@ function App() {
     }
   };
 
-  // USER - Get current user's registrations
+  // =========================
+  // USER - MY REGISTRATIONS
+  // =========================
+
   const getMyRegistrations = async () => {
     try {
       const token = localStorage.getItem("token");
 
+      let userId = localStorage.getItem("userId");
+
+      if (!userId) {
+        userId = getUserIdFromToken(token);
+      }
+
+      if (!userId) {
+        alert(
+          "User ID not found in JWT. Please login again."
+        );
+        return;
+      }
+
       const response = await fetch(
-        "http://localhost:8080/api/registrations/my",
+        `http://localhost:8080/api/registrations/user/${userId}`,
         {
           method: "GET",
           headers: {
@@ -344,22 +457,83 @@ function App() {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load registrations: ${response.status}`
+        );
+      }
+
       const data = await response.json();
 
-      if (response.ok) {
-        setRegistrations(data);
-        setShowRegistrations(true);
-      } else {
-        alert("Failed to load registrations");
-      }
+      setRegistrations(data);
+      setShowRegistrations(true);
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Error loading registrations:",
+        error
+      );
+
       alert("Error loading registrations");
     }
   };
 
-  // Cancel registration
-  const handleCancelRegistration = async (registrationId) => {
+  // =========================
+  // ADMIN - ALL REGISTRATIONS
+  // =========================
+
+  const getAllRegistrations = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        alert("Login token not found. Please login again.");
+        return;
+      }
+
+      const response = await fetch(
+        "http://localhost:8080/api/registrations",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load registrations: ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      console.log("All Registrations:", data);
+
+      setRegistrations(data);
+
+      // IMPORTANT
+      setShowAdminRegistrations(true);
+    } catch (error) {
+      console.error(
+        "Error loading registrations:",
+        error
+      );
+
+      alert(
+        "Error loading registrations: " +
+          error.message
+      );
+    }
+  };
+
+  // =========================
+  // CANCEL REGISTRATION
+  // =========================
+
+  const handleCancelRegistration = async (
+    registrationId
+  ) => {
     try {
       const token = localStorage.getItem("token");
 
@@ -376,15 +550,20 @@ function App() {
       const data = await response.text();
 
       if (response.ok) {
-        alert("Registration Cancelled Successfully!");
+        alert(
+          "Registration Cancelled Successfully!"
+        );
 
         setRegistrations((prevRegistrations) =>
           prevRegistrations.filter(
-            (registration) => registration.id !== registrationId
+            (registration) =>
+              registration.id !== registrationId
           )
         );
       } else {
-        alert(data || "Failed to cancel registration");
+        alert(
+          data || "Failed to cancel registration"
+        );
       }
     } catch (error) {
       console.error(error);
@@ -392,79 +571,193 @@ function App() {
     }
   };
 
-  // Load events after login
+  // =========================
+  // LOAD EVENTS AFTER LOGIN
+  // =========================
+
   useEffect(() => {
     if (isLoggedIn) {
       getEvents();
     }
   }, [isLoggedIn]);
 
-  // ADMIN Dashboard
-  if (isLoggedIn && userRole === "ADMIN") {
+  // =========================
+  // ADMIN - ALL REGISTRATIONS PAGE
+  // =========================
+
+  if (
+    isLoggedIn &&
+    userRole === "ADMIN" &&
+    showAdminRegistrations
+  ) {
+    return (
+      <div className="events-container">
+        <div className="page-header">
+          <h1>All Registrations</h1>
+
+          <div>
+            <button
+              onClick={() =>
+                setShowAdminRegistrations(false)
+              }
+            >
+              Back to Dashboard
+            </button>
+
+            <button onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+
+        {registrations.length === 0 ? (
+          <p>No registrations available.</p>
+        ) : (
+          <div className="events-grid">
+            {registrations.map((registration) => (
+              <div
+                className="event-card"
+                key={registration.id}
+              >
+                <h2>
+                  {registration.event?.title}
+                </h2>
+
+                <p>
+                  <b>User:</b>{" "}
+                  {registration.user?.name}
+                </p>
+
+                <p>
+                  <b>Email:</b>{" "}
+                  {registration.user?.email}
+                </p>
+
+                <p>
+                  <b>Location:</b>{" "}
+                  {registration.event?.location}
+                </p>
+
+                <p>
+                  <b>Date:</b>{" "}
+                  {registration.event?.date}
+                </p>
+
+                <p>
+                  <b>Time:</b>{" "}
+                  {registration.event?.time}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =========================
+  // ADMIN DASHBOARD
+  // =========================
+
+  if (
+    isLoggedIn &&
+    userRole === "ADMIN"
+  ) {
     return (
       <div className="events-container">
         <div className="page-header">
           <h1>Admin Dashboard</h1>
-          <button onClick={handleLogout}>Logout</button>
+
+          <div>
+            <button
+              onClick={getAllRegistrations}
+            >
+              View Registrations
+            </button>
+
+            <button onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="login-card">
           <h2>
-            {editingEventId ? "Update Event" : "Create New Event"}
+            {editingEventId
+              ? "Update Event"
+              : "Create New Event"}
           </h2>
 
           <input
             type="text"
             placeholder="Event Title"
             value={eventTitle}
-            onChange={(e) => setEventTitle(e.target.value)}
+            onChange={(e) =>
+              setEventTitle(e.target.value)
+            }
           />
 
           <input
             type="text"
             placeholder="Description"
             value={eventDescription}
-            onChange={(e) => setEventDescription(e.target.value)}
+            onChange={(e) =>
+              setEventDescription(e.target.value)
+            }
           />
 
           <input
             type="text"
             placeholder="Location"
             value={eventLocation}
-            onChange={(e) => setEventLocation(e.target.value)}
+            onChange={(e) =>
+              setEventLocation(e.target.value)
+            }
           />
 
           <input
             type="date"
             value={eventDate}
-            onChange={(e) => setEventDate(e.target.value)}
+            onChange={(e) =>
+              setEventDate(e.target.value)
+            }
           />
 
           <input
             type="time"
             value={eventTime}
-            onChange={(e) => setEventTime(e.target.value)}
+            onChange={(e) =>
+              setEventTime(e.target.value)
+            }
           />
 
           <input
             type="number"
             placeholder="Capacity"
             value={eventCapacity}
-            onChange={(e) => setEventCapacity(e.target.value)}
+            onChange={(e) =>
+              setEventCapacity(e.target.value)
+            }
           />
 
           {editingEventId ? (
             <>
-              <button onClick={handleUpdateEvent}>
+              <button
+                onClick={handleUpdateEvent}
+              >
                 Update Event
               </button>
 
-              <button onClick={clearEventForm}>
+              <button
+                onClick={clearEventForm}
+              >
                 Cancel Edit
               </button>
             </>
           ) : (
-            <button onClick={handleCreateEvent}>
+            <button
+              onClick={handleCreateEvent}
+            >
               Create Event
             </button>
           )}
@@ -477,20 +770,45 @@ function App() {
         ) : (
           <div className="events-grid">
             {events.map((event) => (
-              <div className="event-card" key={event.id}>
+              <div
+                className="event-card"
+                key={event.id}
+              >
                 <h2>{event.title}</h2>
+
                 <p>{event.description}</p>
 
-                <p><b>Location:</b> {event.location}</p>
-                <p><b>Date:</b> {event.date}</p>
-                <p><b>Time:</b> {event.time}</p>
-                <p><b>Capacity:</b> {event.capacity}</p>
+                <p>
+                  <b>Location:</b>{" "}
+                  {event.location}
+                </p>
 
-                <button onClick={() => handleEditClick(event)}>
+                <p>
+                  <b>Date:</b> {event.date}
+                </p>
+
+                <p>
+                  <b>Time:</b> {event.time}
+                </p>
+
+                <p>
+                  <b>Capacity:</b>{" "}
+                  {event.capacity}
+                </p>
+
+                <button
+                  onClick={() =>
+                    handleEditClick(event)
+                  }
+                >
                   Edit
                 </button>
 
-                <button onClick={() => handleDeleteEvent(event.id)}>
+                <button
+                  onClick={() =>
+                    handleDeleteEvent(event.id)
+                  }
+                >
                   Delete
                 </button>
               </div>
@@ -501,19 +819,29 @@ function App() {
     );
   }
 
-  // USER Events Page
-  if (isLoggedIn && !showRegistrations) {
+  // =========================
+  // USER EVENTS PAGE
+  // =========================
+
+  if (
+    isLoggedIn &&
+    !showRegistrations
+  ) {
     return (
       <div className="events-container">
         <div className="page-header">
           <h1>Available Events</h1>
 
           <div>
-            <button onClick={getMyRegistrations}>
+            <button
+              onClick={getMyRegistrations}
+            >
               My Registrations
             </button>
 
-            <button onClick={handleLogout}>Logout</button>
+            <button onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </div>
 
@@ -522,16 +850,37 @@ function App() {
         ) : (
           <div className="events-grid">
             {events.map((event) => (
-              <div className="event-card" key={event.id}>
+              <div
+                className="event-card"
+                key={event.id}
+              >
                 <h2>{event.title}</h2>
+
                 <p>{event.description}</p>
 
-                <p><b>Location:</b> {event.location}</p>
-                <p><b>Date:</b> {event.date}</p>
-                <p><b>Time:</b> {event.time}</p>
-                <p><b>Capacity:</b> {event.capacity}</p>
+                <p>
+                  <b>Location:</b>{" "}
+                  {event.location}
+                </p>
 
-                <button onClick={() => handleRegister(event.id)}>
+                <p>
+                  <b>Date:</b> {event.date}
+                </p>
+
+                <p>
+                  <b>Time:</b> {event.time}
+                </p>
+
+                <p>
+                  <b>Capacity:</b>{" "}
+                  {event.capacity}
+                </p>
+
+                <button
+                  onClick={() =>
+                    handleRegister(event.id)
+                  }
+                >
                   Register
                 </button>
               </div>
@@ -542,96 +891,156 @@ function App() {
     );
   }
 
-  // My Registrations Page
-  if (isLoggedIn && showRegistrations) {
+  // =========================
+  // MY REGISTRATIONS PAGE
+  // =========================
+
+  if (
+    isLoggedIn &&
+    showRegistrations
+  ) {
     return (
       <div className="events-container">
         <div className="page-header">
           <h1>My Registrations</h1>
 
           <div>
-            <button onClick={() => setShowRegistrations(false)}>
+            <button
+              onClick={() =>
+                setShowRegistrations(false)
+              }
+            >
               Back to Events
             </button>
 
-            <button onClick={handleLogout}>Logout</button>
+            <button onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </div>
 
         {registrations.length === 0 ? (
-          <p>You have not registered for any events.</p>
+          <p>
+            You have not registered for any
+            events.
+          </p>
         ) : (
           <div className="events-grid">
-            {registrations.map((registration) => (
-              <div className="event-card" key={registration.id}>
-                <h2>{registration.event.title}</h2>
-                <p>{registration.event.description}</p>
-
-                <p>
-                  <b>Location:</b> {registration.event.location}
-                </p>
-
-                <p>
-                  <b>Date:</b> {registration.event.date}
-                </p>
-
-                <p>
-                  <b>Time:</b> {registration.event.time}
-                </p>
-
-                <p>
-                  <b>Capacity:</b> {registration.event.capacity}
-                </p>
-
-                <button
-                  onClick={() =>
-                    handleCancelRegistration(registration.id)
-                  }
+            {registrations.map(
+              (registration) => (
+                <div
+                  className="event-card"
+                  key={registration.id}
                 >
-                  Cancel Registration
-                </button>
-              </div>
-            ))}
+                  <h2>
+                    {registration.event?.title}
+                  </h2>
+
+                  <p>
+                    {
+                      registration.event
+                        ?.description
+                    }
+                  </p>
+
+                  <p>
+                    <b>Location:</b>{" "}
+                    {
+                      registration.event
+                        ?.location
+                    }
+                  </p>
+
+                  <p>
+                    <b>Date:</b>{" "}
+                    {registration.event?.date}
+                  </p>
+
+                  <p>
+                    <b>Time:</b>{" "}
+                    {registration.event?.time}
+                  </p>
+
+                  <p>
+                    <b>Capacity:</b>{" "}
+                    {
+                      registration.event
+                        ?.capacity
+                    }
+                  </p>
+
+                  <button
+                    onClick={() =>
+                      handleCancelRegistration(
+                        registration.id
+                      )
+                    }
+                  >
+                    Cancel Registration
+                  </button>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
     );
   }
 
-  // Register Page
+  // =========================
+  // REGISTER PAGE
+  // =========================
+
   if (showRegister) {
     return (
       <div className="container">
         <div className="login-card">
           <h1>Create Account</h1>
+
           <p>Register as a new user</p>
 
           <input
             type="text"
             placeholder="Enter your name"
             value={registerName}
-            onChange={(e) => setRegisterName(e.target.value)}
+            onChange={(e) =>
+              setRegisterName(e.target.value)
+            }
           />
 
           <input
             type="email"
             placeholder="Enter your email"
             value={registerEmail}
-            onChange={(e) => setRegisterEmail(e.target.value)}
+            onChange={(e) =>
+              setRegisterEmail(e.target.value)
+            }
           />
 
           <input
             type="password"
             placeholder="Enter your password"
             value={registerPassword}
-            onChange={(e) => setRegisterPassword(e.target.value)}
+            onChange={(e) =>
+              setRegisterPassword(
+                e.target.value
+              )
+            }
           />
 
-          <button onClick={handleRegisterUser}>Register</button>
+          <button
+            onClick={handleRegisterUser}
+          >
+            Register
+          </button>
 
           <p className="register-text">
             Already have an account?{" "}
-            <span onClick={() => setShowRegister(false)}>
+            <span
+              onClick={() =>
+                setShowRegister(false)
+              }
+            >
               Login
             </span>
           </p>
@@ -640,32 +1049,46 @@ function App() {
     );
   }
 
-  // Login Page
+  // =========================
+  // LOGIN PAGE
+  // =========================
+
   return (
     <div className="container">
       <div className="login-card">
         <h1>Event Management</h1>
+
         <p>Login to your account</p>
 
         <input
           type="email"
           placeholder="Enter your email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) =>
+            setEmail(e.target.value)
+          }
         />
 
         <input
           type="password"
           placeholder="Enter your password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) =>
+            setPassword(e.target.value)
+          }
         />
 
-        <button onClick={handleLogin}>Login</button>
+        <button onClick={handleLogin}>
+          Login
+        </button>
 
         <p className="register-text">
           Don't have an account?{" "}
-          <span onClick={() => setShowRegister(true)}>
+          <span
+            onClick={() =>
+              setShowRegister(true)
+            }
+          >
             Register
           </span>
         </p>

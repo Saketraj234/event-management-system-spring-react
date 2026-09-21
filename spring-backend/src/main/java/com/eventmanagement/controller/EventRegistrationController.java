@@ -2,7 +2,6 @@ package com.eventmanagement.controller;
 
 import com.eventmanagement.entity.EventRegistration;
 import com.eventmanagement.service.EventRegistrationService;
-import com.eventmanagement.service.JwtService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,53 +12,42 @@ import java.util.List;
 public class EventRegistrationController {
 
     private final EventRegistrationService registrationService;
-    private final JwtService jwtService;
 
     public EventRegistrationController(
-            EventRegistrationService registrationService,
-            JwtService jwtService) {
+            EventRegistrationService registrationService) {
 
         this.registrationService = registrationService;
-        this.jwtService = jwtService;
     }
 
-    // Get email from JWT token
-    private String getEmailFromToken(String authorizationHeader) {
-
-        if (authorizationHeader == null ||
-                !authorizationHeader.startsWith("Bearer ")) {
-
-            throw new RuntimeException("Invalid or missing token");
-        }
-
-        String token = authorizationHeader.substring(7);
-
-        return jwtService.extractEmail(token);
-    }
-
-    // Register current logged-in user for an event
-    @PostMapping("/event/{eventId}")
+    // Register user for an event
+    @PostMapping("/user/{userId}/event/{eventId}")
     public ResponseEntity<EventRegistration> registerForEvent(
-            @PathVariable Long eventId,
-            @RequestHeader("Authorization") String authorizationHeader) {
-
-        String email = getEmailFromToken(authorizationHeader);
+            @PathVariable Long userId,
+            @PathVariable Long eventId) {
 
         EventRegistration registration =
-                registrationService.registerForEvent(email, eventId);
+                registrationService.registerForEvent(userId, eventId);
 
         return ResponseEntity.ok(registration);
     }
 
-    // Get all registered events of current logged-in user
-    @GetMapping("/my")
-    public ResponseEntity<List<EventRegistration>> getMyRegisteredEvents(
-            @RequestHeader("Authorization") String authorizationHeader) {
-
-        String email = getEmailFromToken(authorizationHeader);
+    // Get all registrations
+    @GetMapping
+    public ResponseEntity<List<EventRegistration>> getAllRegistrations() {
 
         List<EventRegistration> registrations =
-                registrationService.getRegisteredEvents(email);
+                registrationService.getAllRegistrations();
+
+        return ResponseEntity.ok(registrations);
+    }
+
+    // Get all registered events of a user
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<EventRegistration>> getRegisteredEvents(
+            @PathVariable Long userId) {
+
+        List<EventRegistration> registrations =
+                registrationService.getRegisteredEvents(userId);
 
         return ResponseEntity.ok(registrations);
     }
